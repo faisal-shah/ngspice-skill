@@ -248,9 +248,15 @@ def simulate(
             "https://ngspice.sourceforge.io/ and ensure it's in your PATH."
         )
 
-    # Handle string netlist
+    # Handle string netlist — try Path.exists() but catch OSError for long strings
     cleanup_cir = False
-    if isinstance(netlist, str) and not Path(netlist).exists():
+    is_file = False
+    if isinstance(netlist, str):
+        try:
+            is_file = Path(netlist).exists()
+        except OSError:
+            is_file = False
+    if isinstance(netlist, str) and not is_file:
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".cir", delete=False
         )

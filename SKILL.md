@@ -473,17 +473,21 @@ PEP 723 deps: `schemdraw`, `matplotlib`, `pillow`.
 import schemdraw
 import schemdraw.elements as elm
 
-with schemdraw.Drawing() as d:
-    d += elm.SourceV().label("Vin").up()
-    d += elm.Resistor().right().label("R1")
-    d += elm.Capacitor().down().label("C1")
-    d += elm.Line().left()
-    d.save("circuit.png", dpi=150)
+d = schemdraw.Drawing()
+d += elm.SourceV().label("Vin").up()
+d += elm.Resistor().right().label("R1")
+d += elm.Capacitor().down().label("C1")
+d += elm.Line().left()
+# Use save_drawing() for white background, or d.draw().fig for raw matplotlib
+save_drawing(d, "circuit.png", dpi=150)
 ```
 
 **Key gotchas learned from experience** (all handled by `scripts/draw_circuit.py`):
 - **Transparent background**: schemdraw renders RGBA by default. Use
   `save_drawing()` which composites onto white with PIL automatically.
+- **Context manager hangs**: `with schemdraw.Drawing() as d:` calls `plt.show()`
+  on exit, which blocks in headless/Agg mode. Use explicit `d = schemdraw.Drawing()`
+  + `save_drawing(d, ...)` instead.
 - **Cursor movement**: `elm.Annotate().at(pos)` moves the drawing cursor. Use
   `add_ground(d, element, pin="end")` for explicit positioning.
 - **Label overlap on vertical components**: `loc='left'` on vertical inductors/caps
@@ -491,6 +495,9 @@ with schemdraw.Drawing() as d:
   for coordinate-offset annotations.
 - **Title placement**: Use `save_drawing(d, path, title="...")` which adds titles
   via matplotlib `fig.suptitle()` to avoid excessive whitespace.
+- **`.draw()` return type** (schemdraw ≥0.22): `drawing.draw()` returns a
+  `schemdraw.backends.mpl.Figure` wrapper, not a matplotlib Figure. Access
+  the real figure via `.fig` attribute (e.g., `drawing.draw().fig`).
 
 ### KiCad Export — Interactive Editing
 

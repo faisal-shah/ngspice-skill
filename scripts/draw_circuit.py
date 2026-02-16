@@ -18,6 +18,8 @@ import io
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import schemdraw
 import schemdraw.elements as elm
@@ -35,7 +37,8 @@ def save_drawing(
     Uses PIL to composite the RGBA output onto white, working around
     schemdraw's default transparent background.
     """
-    fig = drawing.draw().get_figure()
+    result = drawing.draw()
+    fig = result.fig if hasattr(result, 'fig') else result
     if title is not None:
         fig.suptitle(title)
 
@@ -87,12 +90,12 @@ def main() -> None:
     """Draw a simple Vin → R1 → C1 → GND demo circuit."""
     out = sys.argv[1] if len(sys.argv) > 1 else "/tmp/schemdraw_demo.png"
 
-    with schemdraw.Drawing() as d:
-        vin = d.add(elm.SourceSin().up().label("Vin", loc="left"))
-        r1 = d.add(elm.Resistor().right().label("R1\n1 kΩ"))
-        c1 = d.add(elm.Capacitor().down().label("C1\n100 nF", loc="left"))
-        d.add(elm.Line().left().tox(vin.start))
-        add_ground(d, c1, pin="end")
+    d = schemdraw.Drawing()
+    vin = d.add(elm.SourceSin().up().label("Vin", loc="left"))
+    r1 = d.add(elm.Resistor().right().label("R1\n1 kΩ"))
+    c1 = d.add(elm.Capacitor().down().label("C1\n100 nF", loc="left"))
+    d.add(elm.Line().left().tox(vin.start))
+    add_ground(d, c1, pin="end")
 
     save_drawing(d, out, title="RC Lowpass — schemdraw demo")
     print(f"Saved to {out}")
