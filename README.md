@@ -7,19 +7,23 @@ publication-quality plots.
 
 ## What's Included
 
-| File | Purpose |
-|------|---------|
-| `SKILL.md` | Main skill file — netlist syntax, analysis patterns, rawfile parsing, Monte Carlo, plotting, visualization |
-| `scripts/parse_rawfile.py` | Standalone binary rawfile parser (CLI + library) |
-| `scripts/run_sim.py` | End-to-end sim runner: netlist → rawfile → numpy arrays → plots |
-| `scripts/draw_circuit.py` | schemdraw helper with gotcha workarounds (white bg, ground placement, labels) |
-| `examples/` | Reference netlists (RC lowpass, pulse response, bandpass, R sweep) |
+| File | Required | Purpose |
+|------|----------|---------|
+| `SKILL.md` | **yes** | Main skill file — loaded by the agent framework |
+| `scripts/parse_rawfile.py` | **yes** | Binary rawfile parser (CLI + library) |
+| `scripts/run_sim.py` | **yes** | End-to-end sim runner with .meas/.step/UIC handling |
+| `scripts/draw_circuit.py` | **yes** | schemdraw helper with gotcha workarounds |
+| `README.md` | no | This file (repo documentation only) |
+| `AGENTS.md` | no | AI context for developing the skill itself |
+| `LICENSE` | no | MIT license text |
+| `examples/` | no | Reference netlists for testing changes to the skill |
+| `tags` | no | ctags file |
 
 ## Installation
 
 ### GitHub Copilot / VS Code
 
-Clone and copy the skill:
+Clone and copy only the required files:
 
 ```bash
 git clone https://github.com/faisal-shah/ngspice-skill.git
@@ -29,23 +33,30 @@ Then install into your project or user-level skills:
 
 ```bash
 # Option 1: project-level
-mkdir -p .github/skills
-cp -r ngspice-skill .github/skills/ngspice
+mkdir -p .github/skills/ngspice/scripts
+cp ngspice-skill/SKILL.md .github/skills/ngspice/
+cp ngspice-skill/scripts/*.py .github/skills/ngspice/scripts/
 
 # Option 2: user-level (all projects)
-cp -r ngspice-skill ~/.copilot/skills/ngspice
+mkdir -p ~/.copilot/skills/ngspice/scripts
+cp ngspice-skill/SKILL.md ~/.copilot/skills/ngspice/
+cp ngspice-skill/scripts/*.py ~/.copilot/skills/ngspice/scripts/
 ```
 
 ### Claude Code
 
 ```bash
-cp -r /path/to/ngspice-skill ~/.claude/skills/ngspice
+mkdir -p ~/.claude/skills/ngspice/scripts
+cp ngspice-skill/SKILL.md ~/.claude/skills/ngspice/
+cp ngspice-skill/scripts/*.py ~/.claude/skills/ngspice/scripts/
 ```
 
 ### OpenAI Codex
 
 ```bash
-cp -r /path/to/ngspice-skill ~/.codex/skills/ngspice
+mkdir -p ~/.codex/skills/ngspice/scripts
+cp ngspice-skill/SKILL.md ~/.codex/skills/ngspice/
+cp ngspice-skill/scripts/*.py ~/.codex/skills/ngspice/scripts/
 ```
 
 ## Prerequisites
