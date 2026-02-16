@@ -12,21 +12,30 @@ AI's context at session start.
   concise (under 500 lines) — every line consumes context tokens on every
   invocation.
 - `scripts/parse_rawfile.py` — Binary rawfile parser. Library + CLI.
-- `scripts/run_sim.py` — End-to-end simulation runner. Handles the .meas
-  + rawfile incompatibility automatically.
+- `scripts/run_sim.py` — End-to-end simulation runner. Handles .meas, .step
+  param sweeps, and UIC warnings automatically.
+- `scripts/draw_circuit.py` — schemdraw helper with gotcha workarounds.
 - `examples/` — Reference netlists for testing.
 
-## Known Gotchas
+## Known Gotchas (all handled by tooling)
 
 1. **`.meas` + `-b -r` incompatibility**: ngspice silently suppresses .meas
-   output when `-r` is used. `run_sim.py` works around this by injecting a
+   output when `-r` is used. **Handled:** `run_sim.py` auto-injects a
    `.control` block when .meas directives are detected.
 
 2. **UIC flag**: Without `UIC` on `.tran`, `ic=` values on components are
    silently ignored (ngspice runs DC OP first, which overrides them).
+   **Handled:** `run_sim.py` prints a warning to stderr when `ic=` is found
+   without `UIC`. Not auto-fixed because skipping UIC can be intentional.
 
 3. **Multi-run rawfiles**: `.step` param sweeps produce concatenated rawfiles.
-   Use `parse_rawfile_all()` instead of `parse_rawfile()` for these.
+   **Handled:** `run_sim.py` auto-detects `.step` directives, injects a
+   `.control` foreach loop, and populates `result.all_runs`. Plotting
+   functions overlay all runs automatically.
+
+4. **schemdraw quirks** (transparent bg, cursor drift, label overlap):
+   **Handled:** `scripts/draw_circuit.py` provides `save_drawing()`,
+   `add_ground()`, and `add_label()` helpers that work around these.
 
 ## Testing Changes
 
@@ -34,6 +43,7 @@ AI's context at session start.
 # Run the example netlists through run_sim.py to verify nothing is broken:
 uv run scripts/run_sim.py examples/rc_lowpass.cir --plot /tmp/test_ac.png
 uv run scripts/run_sim.py examples/pulse_response.cir --plot /tmp/test_tran.png
+uv run scripts/run_sim.py examples/rc_sweep.cir --plot /tmp/test_sweep.png
 ```
 
 ## Style

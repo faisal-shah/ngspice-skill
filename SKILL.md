@@ -259,7 +259,9 @@ C1 out 0 1n
 .end
 ```
 
-The rawfile will contain multiple runs. Parse each run separately:
+The rawfile will contain multiple runs. `run_sim.py` handles this automatically
+when `.step` is detected — `result.all_runs` contains all runs, and plots
+overlay them. For manual parsing, use `parse_rawfile_all()`:
 header will show `No. Points:` for a single run, but the binary section
 contains `n_runs × n_pts` points sequentially.
 
@@ -427,8 +429,8 @@ Vpulse in 0 PULSE(0 15000 0 100n 100n 10u 1m)
 | `M` means milli not mega | SPICE convention | Use `MEG` for 1e6 |
 | Rawfile parse garbage | Text mode vs binary | Always use `-r` flag for binary |
 | AC gain > 0 dB for passives | Phase/complex issue | Check `np.abs()` not `.real` |
-| `.meas` results missing | `-b -r` suppresses `.meas` | Use `.control` block with `run` + `write` instead of `-r` |
-| `ic=` ignored, all zeros | `.tran` without `UIC` | Add `UIC` to `.tran` line |
+| `.meas` results missing | `-b -r` suppresses `.meas` | Use `run_sim.py` (auto-handled) or `.control` block with `run` + `write` |
+| `ic=` ignored, all zeros | `.tran` without `UIC` | Add `UIC` to `.tran` line (`run_sim.py` warns automatically) |
 
 ### Convergence Helpers
 
@@ -445,11 +447,17 @@ Vpulse in 0 PULSE(0 15000 0 100n 100n 10u 1m)
 
 ## 11. Helper Scripts
 
-See `scripts/run_sim.py` for a complete PEP 723 simulation runner with CLI,
-Bode/transient plots, CSV export, and `.meas` parsing. Usage:
+- `scripts/run_sim.py` — Full simulation runner with auto-handling of `.meas`,
+  `.step` param sweeps, and UIC warnings. Bode/transient plots, CSV export.
+- `scripts/parse_rawfile.py` — Binary rawfile parser (single + multi-run).
+- `scripts/draw_circuit.py` — schemdraw wrapper with gotcha workarounds
+  (white bg, ground placement, label offsets, title).
+
+Usage:
 
 ```bash
 uv run scripts/run_sim.py circuit.cir --plot bode.png
+uv run scripts/draw_circuit.py output.png
 ```
 
 ---
@@ -473,16 +481,16 @@ with schemdraw.Drawing() as d:
     d.save("circuit.png", dpi=150)
 ```
 
-**Key gotchas learned from experience:**
-- **Transparent background**: schemdraw renders RGBA by default. Composite onto
-  white with PIL: `Image.alpha_composite(white_bg, img).save("out.png")`
-- **Cursor movement**: `elm.Annotate().at(pos)` moves the drawing cursor. Always
-  place `elm.Ground()` with explicit `.at(component.end)` to avoid misconnection.
+**Key gotchas learned from experience** (all handled by `scripts/draw_circuit.py`):
+- **Transparent background**: schemdraw renders RGBA by default. Use
+  `save_drawing()` which composites onto white with PIL automatically.
+- **Cursor movement**: `elm.Annotate().at(pos)` moves the drawing cursor. Use
+  `add_ground(d, element, pin="end")` for explicit positioning.
 - **Label overlap on vertical components**: `loc='left'` on vertical inductors/caps
-  still overlaps the component body. Use standalone `elm.Annotate()` with explicit
-  `(x, y)` coordinates offset 1.3–1.8 units from the component.
-- **Title placement**: Render circuit first, then add title via matplotlib
-  `fig.suptitle()` to avoid excessive whitespace.
+  still overlaps the component body. Use `add_label(d, element, text, offset=1.5)`
+  for coordinate-offset annotations.
+- **Title placement**: Use `save_drawing(d, path, title="...")` which adds titles
+  via matplotlib `fig.suptitle()` to avoid excessive whitespace.
 
 ### KiCad Export — Interactive Editing
 
