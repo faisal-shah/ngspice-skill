@@ -12,6 +12,8 @@ publication-quality plots.
 | `SKILL.md` | Main skill file — netlist syntax, analysis patterns, rawfile parsing, Monte Carlo, plotting, visualization |
 | `scripts/parse_rawfile.py` | Standalone binary rawfile parser (CLI + library) |
 | `scripts/run_sim.py` | End-to-end sim runner: netlist → rawfile → numpy arrays → plots |
+| `scripts/draw_circuit.py` | schemdraw helper with gotcha workarounds (white bg, ground placement, labels) |
+| `examples/` | Reference netlists (RC lowpass, pulse response, bandpass, R sweep) |
 
 ## Installation
 
