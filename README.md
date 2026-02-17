@@ -23,42 +23,17 @@ publication-quality plots.
 
 ## Installation
 
-### GitHub Copilot / VS Code
-
-Clone and copy only the required files:
-
 ```bash
 git clone https://github.com/faisal-shah/circuit-sim-skill.git
-```
+cd circuit-sim-skill
 
-Then install into your project or user-level skills:
+# Install — provide the path to your agent's skills directory
+./install.sh ~/.copilot/skills      # GitHub Copilot CLI (user-level)
+./install.sh .github/skills         # GitHub Copilot (project-level)
+./install.sh ~/.codex/skills        # OpenAI Codex
 
-```bash
-# Option 1: project-level
-mkdir -p .github/skills/circuit-sim/scripts
-cp circuit-sim-skill/SKILL.md .github/skills/circuit-sim/
-cp circuit-sim-skill/scripts/*.py .github/skills/circuit-sim/scripts/
-
-# Option 2: user-level (all projects)
-mkdir -p ~/.copilot/skills/circuit-sim/scripts
-cp circuit-sim-skill/SKILL.md ~/.copilot/skills/circuit-sim/
-cp circuit-sim-skill/scripts/*.py ~/.copilot/skills/circuit-sim/scripts/
-```
-
-### Claude Code
-
-```bash
-mkdir -p ~/.claude/skills/circuit-sim/scripts
-cp circuit-sim-skill/SKILL.md ~/.claude/skills/circuit-sim/
-cp circuit-sim-skill/scripts/*.py ~/.claude/skills/circuit-sim/scripts/
-```
-
-### OpenAI Codex
-
-```bash
-mkdir -p ~/.codex/skills/circuit-sim/scripts
-cp circuit-sim-skill/SKILL.md ~/.codex/skills/circuit-sim/
-cp circuit-sim-skill/scripts/*.py ~/.codex/skills/circuit-sim/scripts/
+# Uninstall
+./install.sh --uninstall ~/.copilot/skills
 ```
 
 ## Prerequisites
