@@ -305,7 +305,7 @@ Common elements beyond R/L/C that the AI may need:
 **V-controlled switch polarity tip**: the switch closes when `V(ctrl+) - V(ctrl-) > VT`.
 For negative output voltages, swap control nodes so the difference is positive.
 
-Full syntax reference: https://ngspice.sourceforge.io/docs/ngspice-manual.pdf
+Full syntax reference: https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml
 
 ### Coupled Inductors (Transformers)
 
