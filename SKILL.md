@@ -1,9 +1,10 @@
 ---
 name: ngspice
 description: >
-  Run SPICE circuit simulations with ngspice. Covers netlist authoring,
-  AC/DC/transient analysis, binary rawfile parsing, Monte Carlo tolerance
-  analysis, temperature sweeps, .meas extraction, and matplotlib plotting.
+  Run SPICE circuit simulations with ngspice and draw circuit schematic
+  diagrams. Covers netlist authoring, circuit visualization, AC/DC/transient
+  analysis, binary rawfile parsing, Monte Carlo tolerance analysis,
+  temperature sweeps, .meas extraction, and matplotlib plotting.
 ---
 
 # ngspice Circuit Simulation Skill
