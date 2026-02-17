@@ -14,7 +14,8 @@ AI's context at session start.
 - `scripts/parse_rawfile.py` — Binary rawfile parser. Library + CLI.
 - `scripts/run_sim.py` — End-to-end simulation runner. Handles .meas, .step
   param sweeps, and UIC warnings automatically.
-- `scripts/draw_circuit.py` — schemdraw helper with gotcha workarounds.
+- `scripts/compile_tex.py` — Compiles Circuitikz `.tex` schematics to PNG
+  via pdflatex + pdftoppm.
 - `examples/` — Reference netlists for testing.
 
 ## Known Gotchas (all handled by tooling)
@@ -33,9 +34,13 @@ AI's context at session start.
    `.control` foreach loop, and populates `result.all_runs`. Plotting
    functions overlay all runs automatically.
 
-4. **schemdraw quirks** (transparent bg, cursor drift, label overlap):
-   **Handled:** `scripts/draw_circuit.py` provides `save_drawing()`,
-   `add_ground()`, and `add_label()` helpers that work around these.
+## Schematic Approach
+
+**Use Circuitikz (LaTeX)** for circuit schematics — hand-written coordinate-based
+layout produces publication-quality output. schemdraw and auto-layout tools
+(SKiDL+netlistsvg) were evaluated and found inadequate for non-trivial circuits.
+
+`scripts/compile_tex.py` handles the pdflatex → PNG pipeline.
 
 ## Testing Changes
 

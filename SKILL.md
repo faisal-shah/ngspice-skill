@@ -85,25 +85,23 @@ write output.raw v(out)
 
 ## 2. Running ngspice in Batch Mode
 
-Always run batch mode for scripted workflows:
+**Preferred: `.control` block** — embed run + write commands directly in the netlist.
+This is the most reliable pattern and works with `.meas` directives:
 
-```bash
-ngspice -b -r output.raw circuit.cir
+```spice
+.control
+run
+write output.raw
+.endc
 ```
 
-| Flag | Purpose |
-|------|---------|
-| `-b` | Batch mode (no interactive prompt) |
-| `-r output.raw` | Write binary rawfile (preferred over text) |
-| `-o logfile.log` | Redirect stdout/stderr to log |
+Run with: `ngspice -b circuit.cir`
 
-**⚠️ `-b -r` suppresses `.meas` results.** ngspice silently discards all `.meas`
-output when `-r` is used. If the netlist contains `.meas` directives, either:
-1. Use `scripts/run_sim.py` which handles this automatically (injects a `.control` block)
-2. Or manually: drop `-r` and use a `.control` block with `run` + `write output.raw`
+**Simple alternative:** `ngspice -b -r output.raw circuit.cir` writes all signals
+automatically — but **silently suppresses `.meas` results**. Use only without `.meas`.
 
-The `-r` flag writes ALL node voltages and branch currents to the rawfile
-automatically — no `.save` or `.write` needed for basic usage.
+`scripts/run_sim.py` handles this automatically — detects `.meas` and injects
+a `.control` block when needed.
 
 ### Selective Output with .save
 
@@ -125,23 +123,15 @@ Lp node+ node- 6u ic=0.5
 .tran 1u 10m UIC
 ```
 
-**Without `UIC`** (the default): ngspice computes a DC operating point at t=0
-before starting the transient. In the DC operating point, capacitors are open
-circuits and inductors are short circuits, so the solver finds the steady-state
-DC solution. All `ic=` values on components are **silently ignored**. This
-typically produces all-zero waveforms for circuits that depend on stored energy.
+**Without `UIC`** (default): ngspice computes a DC operating point first —
+capacitors open, inductors shorted — and **silently ignores** all `ic=` values.
+This produces all-zero waveforms for stored-energy circuits.
 
-**With `UIC`**: ngspice skips the DC operating point entirely and initializes
-component voltages/currents directly from `ic=` values at t=0. This is essential
-for:
-- Pre-charged capacitors (energy storage, pulsed power)
-- Oscillator startup from a known state
-- Any circuit where the initial stored energy drives the behavior
+**With `UIC`**: skips DC OP, initializes directly from `ic=` values. Essential for
+pre-charged capacitors, oscillator startup, or any energy-storage circuit.
 
-**`ic=` vs `.ic`** — these are different mechanisms:
-- `Cname n+ n- value ic=V` — component-level, **only honored with `UIC`**
-- `.ic V(node)=value` — node-level, applied as constraints **after** DC OP
-  (does NOT require `UIC`, but behaves differently)
+**`ic=` vs `.ic`**: `ic=` on components requires `UIC`; `.ic V(node)=val` is a
+post-DC-OP constraint (different mechanism, does NOT require `UIC`).
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
@@ -164,22 +154,14 @@ data = parse_rawfile("output.raw")
 runs = parse_rawfile_all("output.raw")  # list of dicts, one per run
 ```
 
-**Format overview:** ASCII header (title, variable names, flags) → `Binary:\n` marker →
-packed little-endian float64s. AC data is stored as complex pairs (16 bytes/value);
-DC/transient as real (8 bytes/value). The parser handles both automatically.
-
-### Usage
+AC data is complex; DC/transient is real (stored as complex with zero imaginary).
+Use `np.real()` for time/DC values, `np.abs()`/`np.angle()` for AC.
 
 ```python
 data = parse_rawfile("output.raw")
-freq = np.real(data["frequency"])       # AC sweep variable
-vout = data["v(out)"]                   # Complex for AC
-mag_dB = 20 * np.log10(np.abs(vout))
-phase_deg = np.degrees(np.angle(vout))
-
-# Transient
-time = np.real(data["time"])
-v_out = np.real(data["v(out)"])         # Real for transient
+time = np.real(data["time"])        # Transient
+vout_ac = data["v(out)"]           # AC: complex → use np.abs(), np.angle()
+mag_dB = 20 * np.log10(np.abs(vout_ac))
 ```
 
 CLI: `uv run scripts/parse_rawfile.py output.raw [--json | --csv]`
@@ -200,22 +182,6 @@ R1 out 0 100
 .end
 ```
 
-```python
-data = parse_rawfile("output.raw")
-freq = np.real(data["frequency"])
-vout = data["v(out)"]
-mag = 20 * np.log10(np.abs(vout) + 1e-30)
-phase = np.degrees(np.angle(vout))
-
-fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-ax1.semilogx(freq, mag)
-ax1.set_ylabel("Magnitude (dB)")
-ax1.axhline(-3, color="red", linestyle="--", label="-3 dB")
-ax2.semilogx(freq, phase)
-ax2.set_ylabel("Phase (°)")
-ax2.set_xlabel("Frequency (Hz)")
-```
-
 ### 4b. Transient Analysis
 
 ```spice
@@ -225,14 +191,6 @@ R1 in out 1k
 C1 out 0 1u
 .tran 10u 20m
 .end
-```
-
-```python
-data = parse_rawfile("output.raw")
-time = np.real(data["time"])
-vout = np.real(data["v(out)"])
-plt.plot(time * 1e3, vout)
-plt.xlabel("Time (ms)")
 ```
 
 ### 4c. DC Sweep
@@ -259,11 +217,8 @@ C1 out 0 1n
 .end
 ```
 
-The rawfile will contain multiple runs. `run_sim.py` handles this automatically
-when `.step` is detected — `result.all_runs` contains all runs, and plots
-overlay them. For manual parsing, use `parse_rawfile_all()`:
-header will show `No. Points:` for a single run, but the binary section
-contains `n_runs × n_pts` points sequentially.
+The rawfile contains multiple runs. Use `parse_rawfile_all()` to get a list of
+dicts, one per run. `run_sim.py` handles this automatically with `result.all_runs`.
 
 ---
 
@@ -276,98 +231,66 @@ rng = np.random.default_rng(42)
 for i in range(200):
     r = R_NOM * (1 + rng.uniform(-0.05, 0.05))    # ±5%
     c = C_NOM * (1 + rng.uniform(-0.10, 0.10))    # ±10%
-    netlist = make_netlist(r, c)  # generate netlist string with adjusted values
-    result = simulate(netlist)    # run ngspice, parse rawfile (see scripts/run_sim.py)
-    results.append(result)
+    netlist = make_netlist(r, c)
+    results.append(simulate(netlist))
 ```
 
-### Typical Component Tolerances
+### Component Tolerances & Temperature Coefficients
 
-| Component | Typical | Precision | Notes |
-|-----------|---------|-----------|-------|
-| Resistor (metal film) | ±1% | ±0.1% | TC: 25-100 ppm/°C |
-| Resistor (carbon) | ±5% | ±1% | TC: 200-500 ppm/°C |
-| Capacitor (C0G/NP0) | ±5% | ±1% | TC: ±30 ppm/°C |
-| Capacitor (X7R) | ±10% | ±5% | TC: ±15% over range |
-| Capacitor (electrolytic) | ±20% | — | Avoid in filters |
-| Inductor (ferrite) | ±10% | ±5% | TC: -300 to -800 ppm/°C |
+| Component | Tolerance | TC (ppm/°C) |
+|-----------|-----------|-------------|
+| Resistor (metal film) | ±1% | +25 to +100 |
+| Resistor (carbon) | ±5% | +200 to +500 |
+| Capacitor (C0G/NP0) | ±5% | ±30 |
+| Capacitor (X7R) | ±10% | ±15% over range |
+| Capacitor (electrolytic) | ±20% | — |
+| Inductor (ferrite) | ±10% | -400 to -800 |
 
 ---
 
 ## 6. Temperature Sweep
 
-ngspice's `.temp` only affects semiconductor models, not passive RLC. For passives,
-apply temperature coefficients manually: `R(T) = R_nom × (1 + TC × (T - 25))`.
-
-| Component | TC (ppm/°C) | Notes |
-|-----------|-------------|-------|
-| Metal film resistor | +100 | Most stable |
-| Film capacitor | -200 | C0G/NP0: ±30 |
-| Ferrite inductor | -400 to -800 | Core dependent |
-
-For semiconductors, use ngspice's built-in sweep:
+ngspice `.temp`/`.step temp` only affects semiconductor models, not passive RLC.
+For passives, apply TC manually: `R(T) = R_nom × (1 + TC × (T - 25))`.
 
 ```spice
-.temp 25
-.step temp -40 150 10    * sweep temperature
+.step temp -40 150 10    * sweep semiconductor temperature
 ```
 
 ---
 
 ## 7. Measurements (.meas)
 
-`.meas` extracts scalar metrics from simulation results. They print to
-stdout in batch mode — capture and parse:
+`.meas` extracts scalar metrics. `run_sim.py` parses them automatically.
 
 ```spice
 .meas ac f_3dB WHEN vdb(out)=-3 FALL=1
-.meas ac peak_gain MAX vdb(out)
-.meas ac peak_freq AT peak_gain
 .meas tran risetime TRIG v(out) VAL=0.1 RISE=1 TARG v(out) VAL=0.9 RISE=1
 .meas tran overshoot MAX v(out)
-.meas dc vmax MAX v(out)
 ```
 
-Parse from stdout:
-
-```python
-result = subprocess.run(
-    ["ngspice", "-b", "circuit.cir"],
-    capture_output=True, text=True,
-)
-for line in result.stdout.splitlines():
-    if "f_3db" in line.lower():
-        # e.g., "f_3db               =  1.00000e+04"
-        val = float(line.split("=")[1])
-```
+Manual parsing from stdout: look for `meas_name = value` lines.
 
 ---
 
 ## 8. Plotting Conventions
 
-### Standard Bode Plot
+Always set `matplotlib.use("Agg")` **before** importing pyplot for headless rendering.
 
 ```python
 import matplotlib
-matplotlib.use("Agg")  # headless — always set before importing pyplot
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 fig, (ax_mag, ax_ph) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-
 ax_mag.semilogx(freq, mag_dB, linewidth=2)
 ax_mag.axhline(-3, color="red", linestyle="--", linewidth=0.8, label="-3 dB")
-ax_mag.set_ylabel("Magnitude (dB)")
-ax_mag.grid(True, which="both", alpha=0.3)
-ax_mag.legend()
-
+ax_mag.set_ylabel("Magnitude (dB)"); ax_mag.grid(True, which="both", alpha=0.3)
 ax_ph.semilogx(freq, phase_deg, linewidth=2, color="tab:orange")
-ax_ph.set_ylabel("Phase (°)")
-ax_ph.set_xlabel("Frequency (Hz)")
+ax_ph.set_ylabel("Phase (°)"); ax_ph.set_xlabel("Frequency (Hz)")
 ax_ph.grid(True, which="both", alpha=0.3)
-
 fig.suptitle("Bode Plot", fontsize=14, fontweight="bold")
-fig.tight_layout()
-fig.savefig("bode.png", dpi=150, bbox_inches="tight")
+fig.tight_layout(); fig.savefig("bode.png", dpi=150, bbox_inches="tight")
 ```
 
 ---
@@ -393,6 +316,97 @@ For negative output voltages, swap control nodes so the difference is positive.
 
 Full syntax reference: https://ngspice.sourceforge.io/docs/ngspice-manual.pdf
 
+### Coupled Inductors (Transformers)
+
+ngspice has no standalone transformer element. Model with two inductors + a K
+coupling statement. Turns ratio ≈ √(L2/L1).
+
+```spice
+* Iron-core power transformer: 1:10 turns ratio, k=0.95
+Lpri  pri_top  pri_bot  1m
+Lsec  sec_top  sec_bot  100m
+KTR   Lpri Lsec 0.95
+```
+
+Both inductors support `ic=` for initial current (requires `UIC` on `.tran`).
+Define both `L` elements **before** the `K` statement.
+
+### V-Controlled Switch Patterns
+
+```spice
+* Basic switch: closes when V(ctrl) - V(0) > VT
+Smain  out  load  ctrl  0  SWMOD
+.model SWMOD SW(VT=0.5 VH=0.1 RON=5m ROFF=1MEG)
+
+* Threshold switch: closes when voltage exceeds threshold
+* For negative voltages, swap ctrl+/ctrl- so difference is positive:
+Sbrk  node  gnd  0  node  BRKMOD
+.model BRKMOD SW(VT=100 VH=5 RON=1 ROFF=1G)
+```
+
+### Netlist Structure for Complex Circuits
+
+Use `.param` and section comments for readability:
+
+```spice
+Title — Circuit Name
+.param Vsrc=12 Lp=1m Ls=100m Cload=10u
+
+* === Source ===
+Vsrc  src  0  DC {Vsrc}
+Lpri  src  xfmr_p  {Lp}
+
+* === Load ===
+Lsec  xfmr_s  out  {Ls}
+KTR   Lpri Lsec 0.95
+Cload out  0  {Cload}
+
+.control
+run
+write output.raw
+.endc
+.end
+```
+
+### Subcircuit Usage
+
+Define reusable blocks with `.subckt` and instantiate with `X`:
+
+```spice
+* Define a voltage regulator subcircuit
+.subckt LDO in out gnd
+R1   in  mid  10
+C1   mid gnd  1u
+Breg out gnd  V={min(V(mid,gnd), 3.3)}
+.ends LDO
+
+* Instantiate it
+X1  vin  vout  0  LDO
+X2  vin  vout2 0  LDO
+```
+
+Pin order in `Xname` must match `.subckt` port order exactly. Internal node
+names are local to each instance (no collisions between X1 and X2).
+
+### Behavioral Sources (B Element)
+
+Model nonlinear or computed quantities with arbitrary expressions:
+
+```spice
+* Voltage limiter (clamp to ±5V)
+Blim out 0 V={max(-5, min(5, V(in)))}
+
+* Absolute value rectifier
+Babs out 0 V={abs(V(in))}
+
+* Power computation (V × I)
+Bpwr pwr 0 V={V(load)*I(Vsense)}
+```
+
+Expressions can reference any node voltage `V(node)` or branch current
+`I(Vsource)`. Supports standard math functions: `abs`, `sqrt`, `exp`,
+`log`, `sin`, `cos`, `min`, `max`, `atan2`, `pow`, ternary `(cond ? a : b)`.
+
 ### Transient Source Functions
 
 These are used with `V` or `I` sources. Getting parameter order wrong causes **silent** errors.
@@ -411,9 +425,9 @@ PWL(t1 v1 t2 v2 ...)
   Piecewise linear — arbitrary waveform defined point by point
 ```
 
-Example: 15 kV pulse with 100 ns rise/fall, 10 µs width, 1 ms period:
+Example: 5V pulse with 10ns rise/fall, 10µs width, 100µs period:
 ```spice
-Vpulse in 0 PULSE(0 15000 0 100n 100n 10u 1m)
+Vpulse in 0 PULSE(0 5 0 10n 10n 10u 100u)
 ```
 
 ---
@@ -434,13 +448,17 @@ Vpulse in 0 PULSE(0 15000 0 100n 100n 10u 1m)
 
 ### Convergence Helpers
 
+Escalation order: `method=gear` → `reltol=0.003` → `itl4=50` → relax `abstol`/`vntol`.
+
+| Option | Default | When to change |
+|--------|---------|----------------|
+| `method=gear` | trapezoidal | Stiff circuits: switching, high-Q, large L/C ratios |
+| `reltol` | 0.001 | Relax to 0.003 if "timestep too small" |
+| `itl1` / `itl4` | 100 / 10 | Increase to 300/50 if convergence iterations fail |
+| `abstol` / `vntol` | 1e-12 / 1e-6 | Relax for large-signal circuits (kV/kA range) |
+
 ```spice
-.options reltol=0.003    * Relax tolerance (default 0.001)
-.options abstol=1e-10    * Absolute current tolerance
-.options vntol=1e-4      * Absolute voltage tolerance
-.options itl1=300        * DC iteration limit
-.options itl4=50         * Transient iteration limit
-.options method=gear     * Integration method (gear or trapezoidal)
+.options reltol=0.003 method=gear itl4=50
 ```
 
 ---
@@ -450,65 +468,61 @@ Vpulse in 0 PULSE(0 15000 0 100n 100n 10u 1m)
 - `scripts/run_sim.py` — Full simulation runner with auto-handling of `.meas`,
   `.step` param sweeps, and UIC warnings. Bode/transient plots, CSV export.
 - `scripts/parse_rawfile.py` — Binary rawfile parser (single + multi-run).
-- `scripts/draw_circuit.py` — schemdraw wrapper with gotcha workarounds
-  (white bg, ground placement, label offsets, title).
+- `scripts/compile_tex.py` — Compiles Circuitikz `.tex` schematics to PNG.
 
 Usage:
 
 ```bash
 uv run scripts/run_sim.py circuit.cir --plot bode.png
-uv run scripts/draw_circuit.py output.png
+uv run scripts/compile_tex.py schematic.tex        # → schematic.png
 ```
 
 ---
 
-## 12. Circuit Visualization
+## 12. Circuit Visualization with Circuitikz
 
-### schemdraw — Quick Inline Schematics
+Circuitikz (LaTeX) produces publication-quality schematics. Requires `pdflatex`
+with `circuitikz` package.
 
-Use `schemdraw` for programmatic circuit diagrams (PNG or SVG output).
-PEP 723 deps: `schemdraw`, `matplotlib`, `pillow`.
+### Minimal Template
 
-```python
-import schemdraw
-import schemdraw.elements as elm
-
-d = schemdraw.Drawing()
-d += elm.SourceV().label("Vin").up()
-d += elm.Resistor().right().label("R1")
-d += elm.Capacitor().down().label("C1")
-d += elm.Line().left()
-# Use save_drawing() for white background, or d.draw().fig for raw matplotlib
-save_drawing(d, "circuit.png", dpi=150)
+```latex
+\documentclass[border=10pt]{standalone}
+\usepackage[american]{circuitikz}
+\begin{document}
+\begin{circuitikz}[scale=0.85, transform shape]
+  \draw (0,0) node[ground]{}
+    to[V, l=$V_{in}$] (0,3)
+    to[R, l=$R_1$] (3,3)
+    to[C, l=$C_1$] (3,0) -- (0,0);
+\end{circuitikz}
+\end{document}
 ```
 
-**Key gotchas learned from experience** (all handled by `scripts/draw_circuit.py`):
-- **Transparent background**: schemdraw renders RGBA by default. Use
-  `save_drawing()` which composites onto white with PIL automatically.
-- **Context manager hangs**: `with schemdraw.Drawing() as d:` calls `plt.show()`
-  on exit, which blocks in headless/Agg mode. Use explicit `d = schemdraw.Drawing()`
-  + `save_drawing(d, ...)` instead.
-- **Cursor movement**: `elm.Annotate().at(pos)` moves the drawing cursor. Use
-  `add_ground(d, element, pin="end")` for explicit positioning.
-- **Label overlap on vertical components**: `loc='left'` on vertical inductors/caps
-  still overlaps the component body. Use `add_label(d, element, text, offset=1.5)`
-  for coordinate-offset annotations.
-- **Title placement**: Use `save_drawing(d, path, title="...")` which adds titles
-  via matplotlib `fig.suptitle()` to avoid excessive whitespace.
-- **`.draw()` return type** (schemdraw ≥0.22): `drawing.draw()` returns a
-  `schemdraw.backends.mpl.Figure` wrapper, not a matplotlib Figure. Access
-  the real figure via `.fig` attribute (e.g., `drawing.draw().fig`).
+### Key Components
 
-### KiCad Export — Interactive Editing
+| Circuitikz | SPICE | Notes |
+|-------------|-------|-------|
+| `to[R]` | R | `l=$R_1$` for label |
+| `to[C]` | C | `l=$10\;\mu\mathrm{F}$` |
+| `to[L]` / `to[cute inductor]` | L | `cute inductor` for transformer windings |
+| `to[D]` | D | Diode |
+| `to[nos]` | S (switch) | Normally-open switch |
+| `node[ground]` | node 0 | |
 
-For schematics that need iterative refinement or production documentation, export
-to KiCad format instead of regenerating PNGs each time:
+### Gotchas
 
-- `kicad-sch-api` package generates `.kicad_sch` files (KiCad 8 compatible)
-- Workflow: parse SPICE netlist → map components to KiCad library symbols
-  (e.g., `R` → `Device:R`, `C` → `Device:C`) → auto-place on grid → open in KiCad
-- No direct SPICE→KiCad converter exists; requires custom mapping code
-- `pip install kicad-sch-api` (or `uv pip install`)
+- **Label overlap**: vertical component `l={...}` labels overlap the body. Use
+  `\node[left] at (x,y) {$C_1$};` with explicit coordinates instead.
+- **Transformer**: draw two `cute inductor` (one `mirror`) + parallel lines for core.
+  Add polarity dots: `\node[circle, fill, inner sep=1.3pt] at (x,y) {};`
+- **Stage boxes**: `\draw[dashed, rounded corners, gray] (x1,y1) rectangle (x2,y2);`
 
-This is preferred when the schematic will be revised multiple times or needs to be
-included in formal documentation.
+### Compile Pipeline
+
+```bash
+pdflatex -interaction=nonstopmode schematic.tex
+pdftoppm -png -r 300 schematic.pdf schematic   # → schematic-1.png
+```
+
+Or use `scripts/compile_tex.py` which handles both steps + error reporting.
